@@ -160,7 +160,7 @@ def main():
                 effect.stop()
                 model.clear()
                 model.disable()
-            except FPPError as e:
+            except Exception as e:  # keep going so the other models still get turned off
                 print(f"Could not turn off {model.name}: {e}", file=sys.stderr)
             model.close()
         print("\nStopped; show models turned off.")

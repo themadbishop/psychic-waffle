@@ -53,10 +53,16 @@ def request(method, url, body=None, timeout=5, raw=None):
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             text = resp.read().decode()
     except urllib.error.HTTPError as e:
-        raise FPPError(f"{method} {url} failed: HTTP {e.code} {e.reason}") from e
+        detail = e.read().decode(errors="replace").strip()[:200]
+        raise FPPError(f"{method} {url} failed: HTTP {e.code} {e.reason}" + (f": {detail}" if detail else "")) from e
     except urllib.error.URLError as e:
         raise FPPError(f"Cannot reach FPP at {url}: {e.reason}") from e
-    return json.loads(text) if text.strip() else None
+    if not text.strip():
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text  # some endpoints (e.g. /api/command on FPP 7.5) reply with plain text
 
 
 def list_models(host="localhost"):

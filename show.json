@@ -1,0 +1,8 @@
+{
+  "default": { "effect": "random_solid" },
+  "models": {
+    "Left Tree String": { "effect": "twinkle" },
+    "Left Tree Strip": { "effect": "comet", "size": 15, "speed": 10 },
+    "Mantle": { "effect": "twinkle" }
+  }
+}

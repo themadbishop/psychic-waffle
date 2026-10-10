@@ -49,7 +49,7 @@ sudo python3 /home/fpp/media/scripts/run_show.py
 
 | File | Purpose |
 |------|---------|
-| `fpp_overlay.py` | Stdlib-only FPP client: `OverlayModel` (`set_all`, `fill`, `set_index`, `set_pixel`, `clear`, `enable`/`disable`, `load_geometry`, `setup_frames`, `pixel_count`) and `list_models()` |
+| `fpp_overlay.py` | Stdlib-only FPP client: `OverlayModel` (`set_all`, `fill`, `set_index`, `set_pixel`, `clear`, `enable`/`disable`, `load_geometry`, `setup_frames`, `pixel_count`, `start_effect`, `stop_effects`), `list_models()`, `list_effects()`, `effect_definition()`, `run_command()` |
 | `effects.py` | Effect classes + the `EFFECTS` registry used by `show.json` |
 | `run_show.py` | Runs `show.json`: one effect per model, all at once |
 | `show.json` | Which effect each model runs |
@@ -57,9 +57,14 @@ sudo python3 /home/fpp/media/scripts/run_show.py
 | `README.md` | Setup, install and usage |
 | `STATUS.md` | This file |
 
-Current `show.json`: `Left Tree String` cycles comet -> twinkle -> wled "Fireworks 1D";
-`Left Tree Strip` runs wled "Fireworks 1D" only; `Mantle` cycles wled "Fireworks 1D" ->
-wled "Colortwinkles" -> comet -> twinkle (30 s each). Any other model gets `random_solid`.
+Current `show.json` (committed in `a0de314`):
+
+- `Left Tree String`: comet -> twinkle -> wled "Fireworks 1D", 30 s each.
+- `Mantle`: 11 effects, 10 s each: wled Lake, Ripple, Theater (white/red, gap 65), Juggle,
+  Glitter, Dynamic (`* Colors 1&2` white/red), Dancing Shadows, Fireworks 1D, Colortwinkles,
+  then comet, then wled Loading.
+- `Left Tree Strip`: wled Lake -> Glitter -> Colortwinkles -> twinkle, random 60-600 s each.
+- Any other model: `random_solid`.
 
 ## show.json format
 
@@ -104,6 +109,13 @@ FPP 7.5 quirks found on the Pi: WLED `Brightness` scales pixels by value/128 (12
 >128 makes fading effects saturate to white, so the script rejects it), and the default
 `BufferMapping` (Horizontal) squeezes 1-pixel-wide vertical models into one pixel (the
 script defaults those to Vertical). `Color 2` is the fade/background color (default blue).
+`POST /api/command` replies with plain text, not JSON (the client accepts both).
+
+WLED palette tips: `"Palette": "* Colors 1&2"` with `"Color 1"`/`"Color 2"` blends two chosen
+colors (`"* Color 1"` = one color; `"* Color Gradient"`/`"* Colors Only"` use Colors 1-3).
+Palette names match ignoring case/spaces/symbols. For effects that fade to the background
+(e.g. Fireworks 1D), Color 2 is also the background, so use a built-in palette (Rainbow,
+Party, Lava, ...) with `"Color 2": "#000000"` to keep it dark between bursts.
 An earlier Python translation of WLED's Fireworks 1D (`firework`) was removed in favor of
 `wled` "Fireworks 1D", which avoids copying WLED's EUPL-licensed code.
 
@@ -134,9 +146,11 @@ registered in `EFFECTS`. Options come straight from the `show.json` entry.
   `comet`/`twinkle` (checked pixel-for-pixel against the prototype's math).
 - `wled`: confirmed working on the Pi (Fireworks 1D fading properly on the vertical tree
   strip and the horizontal Mantle) after the Brightness and BufferMapping fixes, 2026-10-10.
+  The current `show.json` validates against the Pi's effect definitions.
 - Cycles tested on the Mac (switch timing, per-effect durations, clearing, loop, validation,
   one-effect lists never switching, random duration ranges).
-- On the Pi: `twinkle` and cycles running alongside `wled` (2026-10-10).
+- On the Pi: `twinkle` and cycles running alongside `wled` (2026-10-10). Random durations
+  and the 11-effect Mantle cycle are deployed but not yet reported back from the Pi.
 
 ## Troubleshooting notes
 
@@ -156,9 +170,20 @@ registered in `EFFECTS`. Options come straight from the `show.json` entry.
 - `comet` leaves leftover pixels dark when the string length isn't a multiple of `size`
   (with 100-pixel models: 6 comets + 10 dark pixels), as the prototype did.
 
+## History
+
+| Commit | Change |
+|--------|--------|
+| `ca4d9eb` | Show runner, overlay client (shm/bulk/pixel), effects incl. comet/twinkle ports |
+| `8817031` | Note GitHub repo in STATUS.md |
+| `c23f589` | Effect cycles, `wled` effect type, `--effects`; Python `firework` dropped |
+| `8e8e08d` | Accept FPP's plain-text command replies |
+| `a0de314` | WLED BufferMapping/Brightness fixes for FPP 7.5, random cycle durations |
+
 ## Next steps
 
-1. Tune effects/settings in `show.json` as more lights are added.
+1. Watch the random-duration Strip and the 11-effect Mantle cycle on the Pi; tune effects and
+   settings in `show.json` as more lights are added.
 2. Optional: SSH key for the Pi so `scp` doesn't need a password.
 3. Set port pixel counts in FPP as lights are added.
 4. Optional: rescan models while running; evenly spaced random colors; start the show from

@@ -64,6 +64,31 @@ def list_models(host="localhost"):
     return request("GET", f"http://{host}/api/overlays/models") or []
 
 
+_effect_cache = {}
+
+
+def list_effects(host="localhost"):
+    """Names of FPP's built-in overlay effects (WLED ones are "WLED - <name>")."""
+    key = (host, None)
+    if key not in _effect_cache:
+        _effect_cache[key] = request("GET", f"http://{host}/api/overlays/effects") or []
+    return _effect_cache[key]
+
+
+def effect_definition(name, host="localhost"):
+    """FPP's description of a built-in effect: {"name": ..., "args": [{name, type, default, ...}]}."""
+    key = (host, name)
+    if key not in _effect_cache:
+        url = f"http://{host}/api/overlays/effects/{urllib.parse.quote(name)}"
+        _effect_cache[key] = request("GET", url) or {"name": name, "args": []}
+    return _effect_cache[key]
+
+
+def run_command(command, args, host="localhost"):
+    """Run an FPP command, e.g. run_command("Overlay Model Effect", [...])."""
+    return request("POST", f"http://{host}/api/command", {"command": command, "args": args})
+
+
 class OverlayModel:
     """One Pixel Overlay Model defined in FPP (Input/Output Setup > Pixel Overlay Models).
 
@@ -76,6 +101,7 @@ class OverlayModel:
 
     def __init__(self, name, host="localhost", timeout=5, pixels=None):
         self.name = name
+        self.host = host
         self.base = f"http://{host}/api"
         self.model_url = f"{self.base}/overlays/model/{urllib.parse.quote(name)}"
         self.timeout = timeout
@@ -99,6 +125,18 @@ class OverlayModel:
             names = ", ".join(m.get("Name", "?") for m in models) or "(none)"
             raise FPPError(f"FPP has no Pixel Overlay Model named '{self.name}'. Models found: {names}")
         return info
+
+    def start_effect(self, effect, args):
+        """Start one of FPP's built-in effects (e.g. "WLED - Fireworks 1D") on this model.
+
+        `args` are the effect's settings as strings, in effect_definition() order.
+        FPP renders the effect itself until stop_effects() is called.
+        """
+        run_command("Overlay Model Effect", [self.name, "Enabled", effect] + list(args), host=self.host)
+
+    def stop_effects(self):
+        """Stop any FPP built-in effect running on this model (FPP also clears the model)."""
+        run_command("Overlay Model Effect", [self.name, "False", "Stop Effects"], host=self.host)
 
     def set_state(self, state):
         self._request("PUT", f"{self.model_url}/state", {"State": state})

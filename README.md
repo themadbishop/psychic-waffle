@@ -80,6 +80,24 @@ A mix of a default and specific models:
 }
 ```
 
+A model can also cycle through a list of effects, switching every `duration` seconds and
+starting over after the last one. An effect can set its own `duration` to override the
+cycle's. Each switch clears the model and starts the next effect fresh.
+
+```json
+"Mantle": {
+  "duration": 30,
+  "effects": [
+    { "effect": "wled", "name": "Fireworks 1D", "Brightness": 255 },
+    { "effect": "comet", "duration": 60 },
+    { "effect": "twinkle" }
+  ]
+}
+```
+
+A list with only one effect runs that effect forever; `duration` is ignored (and optional).
+`"default"` can be a cycle too.
+
 Effects (in `effects.py`):
 
 | Effect | Options |
@@ -91,10 +109,30 @@ Effects (in `effects.py`):
 | `chase` | `color` (default white), `length` lit pixels (default 10), `speed` pixels/second (default 30), `gap` off pixels between repeating segments (default: one segment wrapping the whole string), `background` (default off), `reverse` (`true`/`false`) |
 | `comet` | comets: dark pixel, cubic-fade tail in a random palette color, white head, tiled along the string and moving. `size` (default 15), `speed` pixels/second (default 10), `colors` (palette list), `head` (default white), `brightness` 0-1, `reverse` |
 | `twinkle` | every pixel twinkles on its own: random palette color, fades up and down over a random `min_steps`-`max_steps` steps (default 5-24), one step every `interval` seconds (default 0.1). Also `colors`, `brightness` |
+| `wled` | any of FPP's built-in effects (173 WLED ones plus FPP's own), rendered by FPP itself. `name` (e.g. `"Fireworks 1D"`, without the `WLED - ` prefix) plus any of that effect's settings by FPP's name (e.g. `"Gravity": 100`, `"Palette": "Rainbow"`, `"Color 1": "#00ff00"`); unspecified settings use FPP's defaults |
 
 `comet` and `twinkle` recreate `stripflare`/`stringflare` from the earlier
 `treeMainProgram.py` prototype, with the same default palettes and timing. `colors` takes a
 list like `["#ff0000", "#00ff00", [0, 0, 255]]`.
+
+`wled` examples:
+
+```json
+"Mantle": { "effect": "wled", "name": "Fireworks 1D", "Gravity": 100, "Palette": "Rainbow", "Brightness": 255 }
+```
+
+```bash
+python3 /home/fpp/media/scripts/run_show.py --effects
+```
+
+```bash
+python3 /home/fpp/media/scripts/run_show.py --effects "Fireworks 1D"
+```
+
+The first lists every effect name; the second lists one effect's settings, defaults and
+allowed values. Names and settings are checked against FPP when the show starts (case,
+spaces and underscores don't matter). Note FPP's default `Brightness` for WLED effects is
+128 (half). `wled` effects work in cycles; the script stops them when switching and on Ctrl+C.
 
 Chase example: `"Mantle": { "effect": "chase", "color": "#ff0000", "length": 3, "gap": 7, "speed": 15 }`.
 

@@ -1,8 +1,27 @@
 {
   "default": { "effect": "random_solid" },
   "models": {
-    "Left Tree String": { "effect": "twinkle" },
-    "Left Tree Strip": { "effect": "comet", "size": 15, "speed": 10 },
-    "Mantle": { "effect": "twinkle" }
+    "Left Tree String": {
+      "duration": 30,
+      "effects": [
+        { "effect": "comet", "size": 15, "speed": 10 },
+        { "effect": "twinkle" },
+        { "effect": "wled", "name": "Fireworks 1D", "Brightness": 255 }
+      ]
+    },
+    "Left Tree Strip": {
+      "duration": 30,
+      "effects": [
+        { "effect": "twinkle" }
+      ]
+    },
+    "Mantle": {
+      "duration": 30,
+      "effects": [
+        { "effect": "wled", "name": "Fireworks 1D", "Brightness": 255 },
+        { "effect": "comet", "size": 15, "speed": 10 },
+        { "effect": "twinkle" }
+      ]
+    }
   }
 }

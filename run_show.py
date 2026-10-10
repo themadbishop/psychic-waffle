@@ -13,7 +13,7 @@ import sys
 import time
 
 import effects
-from fpp_overlay import FPPError, OverlayModel, list_models
+from fpp_overlay import FPPError, OverlayModel, effect_definition, list_effects, list_models
 
 DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "show.json")
 
@@ -22,6 +22,30 @@ def print_models(host):
     for m in list_models(host):
         w, h = m.get("width", 0), m.get("height", 0)
         print(f"  {m.get('Name', '?')!r}: {w * h} pixels ({w}x{h}), start channel {m.get('StartChannel', '?')}")
+
+
+def print_effects(host, name):
+    """List FPP's built-in effects, or the settings of one of them."""
+    if not name:
+        names = list_effects(host)
+        print("FPP effects (use with \"effect\": \"wled\", \"name\": ...; WLED ones without the prefix):")
+        for n in names:
+            if n != "Stop Effects":
+                print(f"  {effects.short_effect_name(n)}")
+        return
+    model = OverlayModel("", host=host)
+    full = effects.Wled._resolve(model, name)
+    print(f"{full} settings (show.json name: default [allowed values]):")
+    for arg in effect_definition(full, host).get("args", []):
+        if arg.get("contents"):
+            options = arg["contents"]
+            allowed = ", ".join(options[:8]) + (f", ... ({len(options)} total)" if len(options) > 8 else "")
+        elif arg.get("type") in ("range", "int"):
+            allowed = f"{arg.get('min')}-{arg.get('max')}"
+        else:
+            allowed = arg.get("type", "")
+        default = arg.get("default", arg["contents"][0] if arg.get("contents") else "(required)")
+        print(f"  \"{arg['name']}\": {default}  [{allowed}]")
 
 
 def load_show(path, host):
@@ -86,7 +110,7 @@ def run(show):
         model.enable()
         mode = model.setup_frames()
         due[effect] = time.monotonic()
-        print(f"  {model.name}: {type(effect).__name__} ({model.pixel_count} pixels, {mode} updates)")
+        print(f"  {model.name}: {effect} ({model.pixel_count} pixels, {mode} updates)")
     print(f"{len(show)} model(s) running.")
 
     while True:
@@ -107,11 +131,19 @@ def main():
     parser.add_argument("config", nargs="?", default=DEFAULT_CONFIG, help="show file (default: show.json next to this script)")
     parser.add_argument("--host", default="localhost", help="FPP host (default: localhost)")
     parser.add_argument("--list", action="store_true", help="list the controller's overlay models and exit")
+    parser.add_argument("--effects", nargs="?", const="", metavar="NAME",
+                        help="list FPP's built-in (WLED) effects, or one effect's settings, and exit")
     args = parser.parse_args()
 
     try:
         if args.list:
             print_models(args.host)
+            return
+        if args.effects is not None:
+            try:
+                print_effects(args.host, args.effects)
+            except ValueError as e:
+                sys.exit(str(e))
             return
         show = load_show(args.config, args.host)
     except FPPError as e:
@@ -123,8 +155,9 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        for model, _ in show:
+        for model, effect in show:
             try:
+                effect.stop()
                 model.clear()
                 model.disable()
             except FPPError as e:

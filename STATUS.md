@@ -16,13 +16,14 @@ Models**; FPP itself drives the hat's outputs.
 - Hostname **`flourine`**: web UI at http://flourine.local/ (was 192.168.86.109).
   `fpp.local` does **not** exist on this network.
 - Port pixel counts are set in FPP (*Input/Output Setup > Channel Outputs*, M8-PI tab); FPP
-  auto-creates one overlay model per port at that size. Current ports (set 2026-10-10):
+  auto-creates one overlay model per port at that size **after FPPD restarts** (saving alone
+  doesn't apply it). Current ports (2026-10-10; tree ports raised from 50 to 100 and applied):
 
   | Port | Model | Channels | Pixels | Orientation | Color order |
   |------|-------|----------|--------|-------------|-------------|
   | 1 | `Mantle` | 1-900 | 300 | horizontal | RGB |
-  | 2 | `Left Tree String` | 901-1050 | 50 | vertical | RGB |
-  | 3 | `Left Tree Strip` | 1051-1200 | 50 | vertical | GRB |
+  | 2 | `Left Tree String` | 901-1200 | 100 | vertical | RGB |
+  | 3 | `Left Tree Strip` | 1201-1500 | 100 | vertical | GRB |
   | 4-8 | (unused) | | 0 | | |
 
 - Strings will grow past 1000 pixels: update the port pixel counts in FPP as lights are added
@@ -39,7 +40,8 @@ sudo python3 /home/fpp/media/scripts/run_show.py
 ```
 
 - `sudo` is required for smooth animation (see "Pixel update methods").
-- `run_show.py --list` prints the controller's models and sizes.
+- `run_show.py --list` prints the controller's models and sizes; `--effects [NAME]` lists
+  FPP's built-in effects or one effect's settings.
 - Ctrl+C stops the show and turns the show's models off.
 - No FPP sequence/playlist should be playing on the same channels.
 
@@ -55,22 +57,16 @@ sudo python3 /home/fpp/media/scripts/run_show.py
 | `README.md` | Setup, install and usage |
 | `STATUS.md` | This file |
 
-Current `show.json`:
-
-```json
-{
-  "default": { "effect": "random_solid" },
-  "models": {
-    "Left Tree String": { "effect": "twinkle" },
-    "Left Tree Strip": { "effect": "comet", "size": 15, "speed": 10 },
-    "Mantle": { "effect": "twinkle" }
-  }
-}
-```
+Current `show.json`: `Left Tree String` cycles comet -> twinkle -> wled "Fireworks 1D";
+`Left Tree Strip` runs twinkle only; `Mantle` cycles wled "Fireworks 1D" -> comet -> twinkle
+(30 s each; Fireworks 1D at Brightness 255). Any other model gets `random_solid`.
 
 ## show.json format
 
-- `"models"`: model name -> `{ "effect": ..., options... }`.
+- `"models"`: model name -> `{ "effect": ..., options... }`, or a cycle
+  `{ "duration": 30, "effects": [ {...}, {...} ] }` (each effect runs `duration` seconds, or
+  its own `"duration"`; switches clear the model and restart the next effect; loops forever).
+  A one-effect list runs that effect forever and ignores `duration`.
 - `"default"`: applied to every model on the controller not listed under `"models"`.
 - `"pixels": N` in an entry limits effects to the first N pixels (rarely needed now that the
   port pixel counts are set correctly).
@@ -91,11 +87,19 @@ Current `show.json`:
 | `chase` | `color`, `length`, `speed` (px/s), `gap` (repeating segments), `background`, `reverse` |
 | `comet` | `size` (15), `speed` (10 px/s), `colors`, `head` (white), `brightness`, `reverse` |
 | `twinkle` | `colors`, `interval` (0.1 s), `min_steps` (5), `max_steps` (24), `brightness` |
+| `wled` | `name` + that FPP effect's settings by name (see `run_show.py --effects [NAME]`) |
 
 `comet` and `twinkle` are ports of `stripflare` and `stringflare` from the earlier prototype
 `~/Documents/xmasLights/treeMainProgram.py` (rpi_ws281x, different controller), with the same
 palettes and timing. Deliberate differences: no red/green swap (FPP handles color order per
 port) and default brightness 1.0 (the prototype ran at about 0.7; use `"brightness": 0.7`).
+
+`wled` starts one of FPP's built-in effects (173 WLED + FPP's own) with the FPP command
+`Overlay Model Effect` (`POST /api/command`, AutoEnable "Enabled"); FPP renders it, so no
+sudo or per-frame work is needed. Stopped with "Stop Effects" (AutoEnable "False") on cycle
+switches and Ctrl+C. Settings are validated against `GET /api/overlays/effects/<name>`.
+An earlier Python translation of WLED's Fireworks 1D (`firework`) was removed in favor of
+`wled` "Fireworks 1D", which avoids copying WLED's EUPL-licensed code.
 
 ### Adding an effect
 
@@ -122,7 +126,11 @@ registered in `EFFECTS`. Options come straight from the `show.json` entry.
 - Mac only (mock FPP server / fake model): multi-model handling (12, 3, 0 models; missing and
   empty models; bad configs; Ctrl+C cleanup), all three update methods, `pixels`, and
   `comet`/`twinkle` (checked pixel-for-pixel against the prototype's math).
-- **Not yet seen on the Pi:** `comet` and `twinkle`. The latest copy to the Pi was waiting for
+- `wled`: names/settings validated against the real Pi's definitions (read-only); start /
+  switch / stop sequence tested against the mock. Not yet run on the Pi.
+- Cycles tested on the Mac (switch timing, per-effect durations, clearing, loop, validation,
+  one-effect lists never switching).
+- **Not yet seen on the Pi:** `comet`, `twinkle`, `wled` and cycles. The latest copy to the Pi was waiting for
   the `fpp` password at the end of the session; not confirmed complete.
 
 ## Troubleshooting notes
@@ -141,11 +149,11 @@ registered in `EFFECTS`. Options come straight from the `show.json` entry.
 - Models are read only at startup.
 - Random colors are picked independently, so two models can occasionally look alike.
 - `comet` leaves leftover pixels dark when the string length isn't a multiple of `size`
-  (with 50-pixel models: 3 comets + 5 dark pixels), as the prototype did.
+  (with 100-pixel models: 6 comets + 10 dark pixels), as the prototype did.
 
 ## Next steps
 
-1. Finish copying the files and check `comet` / `twinkle` on the Pi.
+1. Check cycles, `wled`, `comet` and `twinkle` on the Pi.
 2. Optional: SSH key for the Pi so `scp` doesn't need a password.
 3. Set port pixel counts in FPP as lights are added.
 4. Optional: rescan models while running; evenly spaced random colors; start the show from

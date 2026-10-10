@@ -8,8 +8,12 @@ To add an effect: write a class here and add it to EFFECTS.
 """
 
 import colorsys
+import difflib
+import math
 import random
 import time
+
+from fpp_overlay import effect_definition, list_effects
 
 
 def parse_color(value):
@@ -67,6 +71,9 @@ class Effect:
     def __init__(self, model):
         self.model = model
 
+    def __str__(self):
+        return type(self).__name__
+
     def _count(self, count):
         """Validate a pixel count option; None means the whole model."""
         if count is None:
@@ -84,6 +91,9 @@ class Effect:
 
     def update(self):
         return None
+
+    def stop(self):
+        """Called before the model is cleared for another effect or at the end of the show."""
 
 
 class Off(Effect):
@@ -283,9 +293,195 @@ EFFECTS = {
 }
 
 
+WLED_PREFIXES = ("WLED - ", "WLED\u266a - ")  # FPP names audio-reactive ones "WLED♪ - ..."
+
+
+def short_effect_name(name):
+    for prefix in WLED_PREFIXES:
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
+
+
+def _setting_key(name):
+    """Loose match for setting names: "Firing side", "firing_side" and "FiringSide" are equal."""
+    return "".join(ch for ch in str(name).lower() if ch.isalnum())
+
+
+class Wled(Effect):
+    """One of FPP's built-in effects (the 173 "WLED - ..." ones, or FPP's own).
+
+    show.json: {"effect": "wled", "name": "Fireworks 1D", "Gravity": 100, "Palette": "Rainbow"}
+
+    FPP renders the effect itself; the script only starts and stops it. Setting
+    names and allowed values come from FPP (run_show.py --effects "Fireworks 1D"
+    lists them); settings left out use FPP's defaults. Name matching ignores
+    case, spaces and underscores.
+    """
+
+    def __init__(self, model, name, **settings):
+        super().__init__(model)
+        self.effect = self._resolve(model, name)
+        definition = effect_definition(self.effect, model.host)
+        given = {_setting_key(k): (k, v) for k, v in settings.items()}
+        self.args = []
+        for arg in definition.get("args", []):
+            key = _setting_key(arg["name"])
+            if key not in given:
+                key = _setting_key(arg.get("description", ""))
+            if key in given:
+                label, value = given.pop(key)
+                self.args.append(self._convert(arg, label, value))
+            elif "default" in arg:
+                self.args.append(str(arg["default"]))
+            elif arg.get("contents"):
+                self.args.append(arg["contents"][0])
+            else:
+                raise ValueError(f"'{self.effect}' needs a value for \"{arg['name']}\"")
+        if given:
+            known = ", ".join(a["name"] for a in definition.get("args", [])) or "none"
+            unknown = ", ".join(label for label, _ in given.values())
+            raise ValueError(f"unknown setting(s) {unknown} for '{self.effect}'; its settings are: {known}")
+
+    @staticmethod
+    def _resolve(model, name):
+        names = list_effects(model.host)
+        wanted = {_setting_key(p + str(name)) for p in ("",) + WLED_PREFIXES}
+        for n in names:
+            if _setting_key(n) in wanted:
+                return n
+        close = difflib.get_close_matches(f"WLED - {name}", names, n=3) or difflib.get_close_matches(str(name), names, n=3)
+        hint = f"; did you mean {', '.join(close)}?" if close else "; run_show.py --effects lists them"
+        raise ValueError(f"FPP has no effect named {name!r}{hint}")
+
+    @staticmethod
+    def _convert(arg, label, value):
+        """Check a show.json value against FPP's definition and format it as FPP expects."""
+        kind = arg.get("type")
+        if kind in ("range", "int"):
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"{label} must be a whole number, got {value!r}") from None
+            low, high = arg.get("min"), arg.get("max")
+            if (low is not None and number < low) or (high is not None and number > high):
+                raise ValueError(f"{label} must be {low}-{high}, got {number}")
+            return str(number)
+        if kind == "color":
+            return "#%02X%02X%02X" % parse_color(value)
+        if kind == "bool":
+            if not isinstance(value, bool):
+                raise ValueError(f"{label} must be true or false, got {value!r}")
+            return "true" if value else "false"
+        if arg.get("contents"):
+            for option in arg["contents"]:
+                if _setting_key(option) == _setting_key(value):
+                    return option
+            options = arg["contents"]
+            shown = ", ".join(options[:12]) + (", ..." if len(options) > 12 else "")
+            raise ValueError(f"{label} must be one of: {shown}; got {value!r}")
+        return str(value)
+
+    def __str__(self):
+        return f"wled {short_effect_name(self.effect)!r}"
+
+    def update(self):
+        self.model.start_effect(self.effect, self.args)
+        return None  # FPP keeps it running
+
+    def stop(self):
+        self.model.stop_effects()
+
+
+EFFECTS["wled"] = Wled
+
+
+class Cycle(Effect):
+    """Runs a list of effects in turn, switching every `duration` seconds.
+
+    show.json: {"duration": 30, "effects": [{"effect": "twinkle"},
+                                            {"effect": "comet", "duration": 60}]}
+    An effect's own "duration" overrides the cycle's. Each switch clears the
+    model and starts the next effect fresh; after the last it starts over.
+    A list with a single effect runs it forever; any duration is ignored.
+    """
+
+    def __init__(self, model, effects, duration=None):
+        super().__init__(model)
+        if not isinstance(effects, list) or not effects:
+            raise ValueError(f"effects must be a non-empty list, got {effects!r}")
+        single = len(effects) == 1
+        self.steps = []  # (spec, seconds)
+        for n, item in enumerate(effects, 1):
+            if not isinstance(item, dict):
+                raise ValueError(f"effect {n} must be an object like {{\"effect\": \"twinkle\"}}, got {item!r}")
+            item = dict(item)
+            seconds = item.pop("duration", duration)
+            if single:
+                seconds = math.inf  # nothing to switch to
+            label = f"effect {n} ({item.get('effect')!r})"
+            if seconds is None:
+                raise ValueError(f"{label} has no duration; set \"duration\" on the cycle or the effect")
+            if not isinstance(seconds, (int, float)) or seconds <= 0:
+                raise ValueError(f"{label}: duration must be > 0 seconds, got {seconds!r}")
+            if "effects" in item:
+                raise ValueError(f"{label}: cycles can't be nested")
+            try:
+                create(model, item)  # validate now so mistakes show up before the show starts
+            except ValueError as e:
+                raise ValueError(f"{label}: {e}") from e
+            self.steps.append((item, seconds))
+        self.index = -1
+        self.current = None
+        self.switch_at = 0.0
+        self.inner_due = None
+
+    def __str__(self):
+        if len(self.steps) == 1:
+            return f"{self._label(self.steps[0][0])} (only effect in list; no switching)"
+        return "Cycle(" + " -> ".join(f"{self._label(spec)} {seconds:g}s" for spec, seconds in self.steps) + ")"
+
+    @staticmethod
+    def _label(spec):
+        return f"wled {spec.get('name')!r}" if spec.get("effect") == "wled" else spec.get("effect")
+
+    def update(self):
+        now = time.monotonic()
+        if now >= self.switch_at:
+            if self.current is not None:
+                self.current.stop()
+                self.model.clear()
+                self.model.enable()  # stopping an FPP effect may have disabled the model
+            self.index = (self.index + 1) % len(self.steps)
+            spec, seconds = self.steps[self.index]
+            self.current = create(self.model, spec)
+            self.switch_at = now + seconds
+            self.inner_due = now
+        if self.inner_due is not None and now >= self.inner_due:
+            delay = self.current.update()
+            self.inner_due = None if delay is None else now + delay
+        # Wake for the effect's next update or the next switch, whichever comes first.
+        wake = self.switch_at if self.inner_due is None else min(self.switch_at, self.inner_due)
+        if wake == math.inf:
+            return None  # a single static effect: nothing more to do
+        return max(0.0, wake - time.monotonic())
+
+    def stop(self):
+        if self.current is not None:
+            self.current.stop()
+
+
 def create(model, spec):
-    """Build an effect from one show.json entry, e.g. {"effect": "solid", "color": "#ff0000"}."""
+    """Build an effect from one show.json entry, e.g. {"effect": "solid", "color": "#ff0000"},
+    or a cycle: {"duration": 30, "effects": [...]}."""
+    if not isinstance(spec, dict):
+        raise ValueError(f"expected an object like {{\"effect\": \"twinkle\"}}, got {spec!r}")
     spec = dict(spec)
+    if "effects" in spec:
+        try:
+            return Cycle(model, **spec)
+        except TypeError as e:
+            raise ValueError(f"bad options for a cycle (use \"duration\" and \"effects\"): {e}") from e
     name = spec.pop("effect", None)
     cls = EFFECTS.get(name)
     if cls is None:

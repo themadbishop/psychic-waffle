@@ -12,6 +12,7 @@ Models**; FPP itself drives the hat's outputs.
 ## Hardware / FPP setup
 
 - Raspberry Pi 4, FPP 7.5 (FPP OS image v2023-12), M8-PI hat (8 pixel ports).
+- Code: https://github.com/themadbishop/psychic-waffle (`main`, pushed over SSH).
 - Hostname **`flourine`**: web UI at http://flourine.local/ (was 192.168.86.109).
   `fpp.local` does **not** exist on this network.
 - Port pixel counts are set in FPP (*Input/Output Setup > Channel Outputs*, M8-PI tab); FPP
@@ -149,4 +150,3 @@ registered in `EFFECTS`. Options come straight from the `show.json` entry.
 3. Set port pixel counts in FPP as lights are added.
 4. Optional: rescan models while running; evenly spaced random colors; start the show from
    FPP's scheduler (it must run as root for shm access); more effects.
-5. Push `main` to GitHub (`origin` = themadbishop/psychic-waffle); initial commit made 2026-10-10, not pushed yet.

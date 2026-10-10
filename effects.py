@@ -332,6 +332,11 @@ class Wled(Effect):
             if key in given:
                 label, value = given.pop(key)
                 self.args.append(self._convert(arg, label, value))
+            elif arg["name"] == "BufferMapping" and "Vertical" in arg.get("contents", []):
+                # Lay 1D effects along the string: FPP's default (Horizontal) squeezes a
+                # vertical 1-pixel-wide model into a single pixel.
+                vertical = getattr(model, "width", 0) == 1 and getattr(model, "height", 0) > 1
+                self.args.append("Vertical" if vertical else "Horizontal")
             elif "default" in arg:
                 self.args.append(str(arg["default"]))
             elif arg.get("contents"):
@@ -342,6 +347,14 @@ class Wled(Effect):
             known = ", ".join(a["name"] for a in definition.get("args", [])) or "none"
             unknown = ", ".join(label for label, _ in given.values())
             raise ValueError(f"unknown setting(s) {unknown} for '{self.effect}'; its settings are: {known}")
+        if self.effect.startswith(WLED_PREFIXES):
+            # FPP 7.5 scales every pixel WLED writes by Brightness/128, so 128 is normal
+            # brightness. Above that, effects that fade by reading pixels back (fireworks,
+            # twinkles, ...) brighten instead of fading and get stuck at full white.
+            for arg, value in zip(definition.get("args", []), self.args):
+                if arg["name"] == "Brightness" and int(value) > 128:
+                    raise ValueError(f"Brightness {value} is too high: in FPP's WLED effects 128 is full "
+                                     f"brightness, and higher values stop fading effects from fading. Use 1-128.")
 
     @staticmethod
     def _resolve(model, name):
@@ -396,14 +409,37 @@ class Wled(Effect):
 EFFECTS["wled"] = Wled
 
 
+RANDOM_DURATION = (60, 600)  # seconds, for "duration": "random"
+
+
+def parse_duration(value, label):
+    """A cycle duration: seconds, {"min": a, "max": b} or "random". Returns (min, max)."""
+    if value == "random":
+        return RANDOM_DURATION
+    if isinstance(value, dict):
+        extra = set(value) - {"min", "max"}
+        low, high = value.get("min"), value.get("max")
+        if extra or not all(isinstance(v, (int, float)) for v in (low, high)):
+            raise ValueError(f"{label}: a random duration needs numbers \"min\" and \"max\", got {value!r}")
+        if not 0 < low <= high:
+            raise ValueError(f"{label}: need 0 < min <= max, got min {low}, max {high}")
+        return (low, high)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"{label}: duration must be seconds > 0, \"random\" or {{\"min\": .., \"max\": ..}}, "
+                         f"got {value!r}")
+    return (value, value)
+
+
 class Cycle(Effect):
     """Runs a list of effects in turn, switching every `duration` seconds.
 
     show.json: {"duration": 30, "effects": [{"effect": "twinkle"},
                                             {"effect": "comet", "duration": 60}]}
-    An effect's own "duration" overrides the cycle's. Each switch clears the
-    model and starts the next effect fresh; after the last it starts over.
-    A list with a single effect runs it forever; any duration is ignored.
+    An effect's own "duration" overrides the cycle's. A duration can also be
+    random, re-picked every time the effect starts: {"min": 60, "max": 600},
+    or "random" for 60-600 s. Each switch clears the model and starts the
+    next effect fresh; after the last it starts over. A list with a single
+    effect runs it forever; any duration is ignored.
     """
 
     def __init__(self, model, effects, duration=None):
@@ -411,19 +447,19 @@ class Cycle(Effect):
         if not isinstance(effects, list) or not effects:
             raise ValueError(f"effects must be a non-empty list, got {effects!r}")
         single = len(effects) == 1
-        self.steps = []  # (spec, seconds)
+        self.steps = []  # (spec, (min seconds, max seconds))
         for n, item in enumerate(effects, 1):
             if not isinstance(item, dict):
                 raise ValueError(f"effect {n} must be an object like {{\"effect\": \"twinkle\"}}, got {item!r}")
             item = dict(item)
             seconds = item.pop("duration", duration)
-            if single:
-                seconds = math.inf  # nothing to switch to
             label = f"effect {n} ({item.get('effect')!r})"
-            if seconds is None:
+            if single:
+                seconds = (math.inf, math.inf)  # nothing to switch to
+            elif seconds is None:
                 raise ValueError(f"{label} has no duration; set \"duration\" on the cycle or the effect")
-            if not isinstance(seconds, (int, float)) or seconds <= 0:
-                raise ValueError(f"{label}: duration must be > 0 seconds, got {seconds!r}")
+            else:
+                seconds = parse_duration(seconds, label)
             if "effects" in item:
                 raise ValueError(f"{label}: cycles can't be nested")
             try:
@@ -439,7 +475,12 @@ class Cycle(Effect):
     def __str__(self):
         if len(self.steps) == 1:
             return f"{self._label(self.steps[0][0])} (only effect in list; no switching)"
-        return "Cycle(" + " -> ".join(f"{self._label(spec)} {seconds:g}s" for spec, seconds in self.steps) + ")"
+        return "Cycle(" + " -> ".join(f"{self._label(spec)} {self._span(s)}" for spec, s in self.steps) + ")"
+
+    @staticmethod
+    def _span(seconds):
+        low, high = seconds
+        return f"{low:g}s" if low == high else f"{low:g}-{high:g}s"
 
     @staticmethod
     def _label(spec):
@@ -453,10 +494,13 @@ class Cycle(Effect):
                 self.model.clear()
                 self.model.enable()  # stopping an FPP effect may have disabled the model
             self.index = (self.index + 1) % len(self.steps)
-            spec, seconds = self.steps[self.index]
+            spec, (low, high) = self.steps[self.index]
             self.current = create(self.model, spec)
+            seconds = low if low == high else random.uniform(low, high)
             self.switch_at = now + seconds
             self.inner_due = now
+            if len(self.steps) > 1:
+                print(f"  {self.model.name}: {self._label(spec)} for {seconds:.0f}s", flush=True)
         if self.inner_due is not None and now >= self.inner_due:
             delay = self.current.update()
             self.inner_due = None if delay is None else now + delay

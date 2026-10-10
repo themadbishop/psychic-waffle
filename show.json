@@ -6,20 +6,31 @@
       "effects": [
         { "effect": "comet", "size": 15, "speed": 10 },
         { "effect": "twinkle" },
-        { "effect": "wled", "name": "Fireworks 1D", "Brightness": 255 }
-      ]
-    },
-    "Left Tree Strip": {
-      "duration": 30,
-      "effects": [
-        { "effect": "twinkle" }
+        { "effect": "wled", "name": "Fireworks 1D" }
       ]
     },
     "Mantle": {
-      "duration": 30,
+      "duration": 10,
       "effects": [
-        { "effect": "wled", "name": "Fireworks 1D", "Brightness": 255 },
+        { "effect": "wled", "name": "Lake", "Palette": "Rainbow" },
+        { "effect": "wled", "name": "Ripple", "Palette": "Rainbow", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Theater", "Color 1": "#FFFFFF", "Color 2": "#FF0000", "Gap size": 65 },
+        { "effect": "wled", "name": "Juggle" },
+        { "effect": "wled", "name": "Glitter" },
+        { "effect": "wled", "name": "Dynamic", "Palette": "* Colors 1&2", "Color 1": "#FFFFFF", "Color 2": "#FF0000" },
+        { "effect": "wled", "name": "Dancing Shadows", "Palette": "Rainbow", "Speed": 15 },
+        { "effect": "wled", "name": "Fireworks 1D", "Palette": "Rainbow", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Colortwinkles" },
         { "effect": "comet", "size": 15, "speed": 10 },
+        { "effect": "wled", "name": "Loading", "Palette": "Rainbow", "Color 1": "#000000", "Color 2": "#000000" }
+      ]
+    },
+    "Left Tree Strip": {
+      "duration": "random",
+      "effects": [
+        { "effect": "wled", "name": "Lake", "Palette": "Rainbow" },
+        { "effect": "wled", "name": "Glitter" },
+        { "effect": "wled", "name": "Colortwinkles" },
         { "effect": "twinkle" }
       ]
     }

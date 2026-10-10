@@ -88,12 +88,16 @@ cycle's. Each switch clears the model and starts the next effect fresh.
 "Mantle": {
   "duration": 30,
   "effects": [
-    { "effect": "wled", "name": "Fireworks 1D", "Brightness": 255 },
+    { "effect": "wled", "name": "Fireworks 1D", "Palette": "Rainbow", "Color 2": "#000000" },
     { "effect": "comet", "duration": 60 },
     { "effect": "twinkle" }
   ]
 }
 ```
+
+A `duration` can also be random, picked fresh each time an effect starts:
+`"duration": { "min": 60, "max": 600 }`, or `"duration": "random"` for 60-600 seconds. This
+works on the cycle or on a single effect. Each switch prints the effect and how long it runs.
 
 A list with only one effect runs that effect forever; `duration` is ignored (and optional).
 `"default"` can be a cycle too.
@@ -118,7 +122,7 @@ list like `["#ff0000", "#00ff00", [0, 0, 255]]`.
 `wled` examples:
 
 ```json
-"Mantle": { "effect": "wled", "name": "Fireworks 1D", "Gravity": 100, "Palette": "Rainbow", "Brightness": 255 }
+"Mantle": { "effect": "wled", "name": "Fireworks 1D", "Gravity": 100, "Palette": "Rainbow", "Color 2": "#000000" }
 ```
 
 ```bash
@@ -131,8 +135,12 @@ python3 /home/fpp/media/scripts/run_show.py --effects "Fireworks 1D"
 
 The first lists every effect name; the second lists one effect's settings, defaults and
 allowed values. Names and settings are checked against FPP when the show starts (case,
-spaces and underscores don't matter). Note FPP's default `Brightness` for WLED effects is
-128 (half). `wled` effects work in cycles; the script stops them when switching and on Ctrl+C.
+spaces and underscores don't matter). `Brightness` for WLED effects: FPP 7.5 scales pixels by Brightness/128, so the
+default 128 is full brightness; lower dims, and values above 128 are rejected because they
+stop fading effects from fading (pixels get stuck at white). `Color 2` is the background that trails fade to (FPP's default is blue; use
+`"Color 2": "#000000"` for off). `BufferMapping` defaults to `Vertical` for models one pixel
+wide and `Horizontal` otherwise, so 1D effects run along the string; set it to override
+(e.g. `"Vertical Flipped"` to launch from the other end). `wled` effects work in cycles; the script stops them when switching and on Ctrl+C.
 
 Chase example: `"Mantle": { "effect": "chase", "color": "#ff0000", "length": 3, "gap": 7, "speed": 15 }`.
 

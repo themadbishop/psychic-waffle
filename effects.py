@@ -15,6 +15,11 @@ import time
 
 from fpp_overlay import effect_definition, list_effects
 
+# Frames per second for animated effects. FPP 7.5 sends frames to the lights 20 times a
+# second when no sequence is playing (and runs its WLED effects at that rate), so faster
+# updates wouldn't be seen.
+FPS = 20
+
 
 def parse_color(value):
     """Accept [r, g, b] (0-255) or "#RRGGBB"."""
@@ -150,8 +155,6 @@ class Chase(Effect):
     around; with `gap` set, the pattern repeats (`length` lit, `gap` off).
     """
 
-    MAX_FPS = 40
-
     def __init__(self, model, color="#ffffff", length=10, gap=None, speed=30,
                  background="#000000", reverse=False):
         super().__init__(model)
@@ -168,7 +171,7 @@ class Chase(Effect):
         self.length = length
         self.speed = speed
         self.direction = -1 if reverse else 1
-        self.interval = max(1 / speed, 1 / self.MAX_FPS)
+        self.interval = 1 / FPS  # position comes from the clock; frames only sent when it moves
         self.start = None
         self.last_pos = None
 
@@ -196,8 +199,6 @@ class Comet(Effect):
     `colors`. The pattern moves `speed` pixels per second.
     """
 
-    MAX_FPS = 40
-
     def __init__(self, model, size=15, speed=10, colors=None, head="#ffffff",
                  brightness=1.0, reverse=False):
         super().__init__(model)
@@ -220,10 +221,12 @@ class Comet(Effect):
                 self.pattern.append(scale(color, pct * brightness))
             self.pattern.append(head)
         self.pattern += [(0, 0, 0)] * (n - len(self.pattern))
+        if reverse:
+            self.pattern.reverse()  # mirror the flares so the white head still leads
 
         self.speed = speed
         self.direction = -1 if reverse else 1
-        self.interval = max(1 / speed, 1 / self.MAX_FPS)
+        self.interval = 1 / FPS  # position comes from the clock; frames only sent when it moves
         self.start = None
         self.last_offset = None
 
@@ -245,10 +248,12 @@ class Twinkle(Effect):
 
     Each pixel picks a random color from `colors` and a random length of
     `min_steps`-`max_steps` steps, fades linearly up to full brightness and
-    back to off, then picks again. One step every `interval` seconds.
+    back to off, then picks again. One step every `interval` seconds (one
+    frame at FPS); the default steps last as long as the prototype's 5-24
+    steps of 0.1 s.
     """
 
-    def __init__(self, model, colors=None, interval=0.1, min_steps=5, max_steps=24, brightness=1.0):
+    def __init__(self, model, colors=None, interval=1 / FPS, min_steps=10, max_steps=48, brightness=1.0):
         super().__init__(model)
         self.palette = parse_palette(colors, TWINKLE_COLORS)
         self.brightness = check_brightness(brightness)

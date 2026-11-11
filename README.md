@@ -102,6 +102,11 @@ works on the cycle or on a single effect. Each switch prints the effect and how 
 A list with only one effect runs that effect forever; `duration` is ignored (and optional).
 `"default"` can be a cycle too.
 
+Animated effects run at 20 frames per second (`FPS` in `effects.py`), matching the rate at
+which FPP 7.5 sends frames to the lights when no sequence is playing; FPP's WLED effects run
+at that rate too. `comet` and `chase` move by the clock, so `speed` above 20 pixels/second
+moves more than one pixel per frame.
+
 Effects (in `effects.py`):
 
 | Effect | Options |
@@ -112,7 +117,7 @@ Effects (in `effects.py`):
 | `random_cycle` | `count` (default: all), `interval` seconds (default 3), `brightness` 0-1 (default 1) |
 | `chase` | `color` (default white), `length` lit pixels (default 10), `speed` pixels/second (default 30), `gap` off pixels between repeating segments (default: one segment wrapping the whole string), `background` (default off), `reverse` (`true`/`false`) |
 | `comet` | comets: dark pixel, cubic-fade tail in a random palette color, white head, tiled along the string and moving. `size` (default 15), `speed` pixels/second (default 10), `colors` (palette list), `head` (default white), `brightness` 0-1, `reverse` |
-| `twinkle` | every pixel twinkles on its own: random palette color, fades up and down over a random `min_steps`-`max_steps` steps (default 5-24), one step every `interval` seconds (default 0.1). Also `colors`, `brightness` |
+| `twinkle` | every pixel twinkles on its own: random palette color, fades up and down over a random `min_steps`-`max_steps` steps (default 10-48), one step every `interval` seconds (default 0.05, i.e. 20 fps). Also `colors`, `brightness` |
 | `wled` | any of FPP's built-in effects (173 WLED ones plus FPP's own), rendered by FPP itself. `name` (e.g. `"Fireworks 1D"`, without the `WLED - ` prefix) plus any of that effect's settings by FPP's name (e.g. `"Gravity": 100`, `"Palette": "Rainbow"`, `"Color 1": "#00ff00"`); unspecified settings use FPP's defaults |
 
 `comet` and `twinkle` recreate `stripflare`/`stringflare` from the earlier

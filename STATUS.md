@@ -93,12 +93,13 @@ Current `show.json` (committed in `a0de314`):
 | `random_cycle` | `count`, `interval` (default 3 s), `brightness` |
 | `chase` | `color`, `length`, `speed` (px/s), `gap` (repeating segments), `background`, `reverse` |
 | `comet` | `size` (15), `speed` (10 px/s), `colors`, `head` (white), `brightness`, `reverse` |
-| `twinkle` | `colors`, `interval` (0.1 s), `min_steps` (5), `max_steps` (24), `brightness` |
+| `twinkle` | `colors`, `interval` (0.05 s), `min_steps` (10), `max_steps` (48), `brightness` |
 | `wled` | `name` + that FPP effect's settings by name (see `run_show.py --effects [NAME]`) |
 
 `comet` and `twinkle` are ports of `stripflare` and `stringflare` from the earlier prototype
 `~/Documents/xmasLights/treeMainProgram.py` (rpi_ws281x, different controller), with the same
-palettes and timing. Deliberate differences: no red/green swap (FPP handles color order per
+palettes and timing (twinkle's defaults are doubled steps at 0.05 s, so fades last as long as
+the prototype's 5-24 steps at 0.1 s). Deliberate differences: no red/green swap (FPP handles color order per
 port) and default brightness 1.0 (the prototype ran at about 0.7; use `"brightness": 0.7`).
 
 `wled` starts one of FPP's built-in effects (173 WLED + FPP's own) with the FPP command
@@ -125,6 +126,13 @@ A class in `effects.py` with `__init__(self, model, **options)` (validate; raise
 `ValueError` on bad input) and `update(self)` (set pixels, usually with
 `self.model.set_all(frame)`; return seconds until the next update, or `None` if static),
 registered in `EFFECTS`. Options come straight from the `show.json` entry.
+
+## Frame rate
+
+Animated Python effects run at 20 fps (`FPS` in `effects.py`). FPP 7.5 outputs frames every
+`E131BridgingInterval` ms when no sequence is playing (default 50 ms = 20 fps), and runs its
+WLED effects at its refresh rate (default 20), so faster updates wouldn't reach the lights.
+`comet`/`chase` positions follow the clock and frames are only sent when they move.
 
 ## Pixel update methods
 

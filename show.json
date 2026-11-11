@@ -1,35 +1,61 @@
 {
   "default": { "effect": "random_solid" },
   "models": {
-    "Left Tree String": {
+    "LeftTreeString": {
       "duration": 30,
       "effects": [
-        { "effect": "comet", "size": 15, "speed": 10 },
+        { "effect": "comet", "size": 15, "speed": 10, "reverse": true },
         { "effect": "twinkle" },
         { "effect": "wled", "name": "Fireworks 1D" }
       ]
     },
-    "Mantle": {
-      "duration": 10,
-      "effects": [
-        { "effect": "wled", "name": "Lake", "Palette": "Rainbow" },
-        { "effect": "wled", "name": "Ripple", "Palette": "Rainbow", "Color 2": "#000000" },
-        { "effect": "wled", "name": "Theater", "Color 1": "#FFFFFF", "Color 2": "#FF0000", "Gap size": 65 },
-        { "effect": "wled", "name": "Juggle" },
-        { "effect": "wled", "name": "Glitter" },
-        { "effect": "wled", "name": "Dynamic", "Palette": "* Colors 1&2", "Color 1": "#FFFFFF", "Color 2": "#FF0000" },
-        { "effect": "wled", "name": "Dancing Shadows", "Palette": "Rainbow", "Speed": 15 },
-        { "effect": "wled", "name": "Fireworks 1D", "Palette": "Rainbow", "Color 2": "#000000" },
-        { "effect": "wled", "name": "Colortwinkles" },
-        { "effect": "comet", "size": 15, "speed": 10 },
-        { "effect": "wled", "name": "Loading", "Palette": "Rainbow", "Color 1": "#000000", "Color 2": "#000000" }
-      ]
-    },
-    "Left Tree Strip": {
+    "LeftTreeStrip": {
       "duration": "random",
       "effects": [
+        { "effect": "wled", "name": "Ripple", "Palette": "Rainbow", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Theater", "Color 1": "#FFFFFF", "Color 2": "#FF0000", "Gap size": 65 },
+        { "effect": "comet", "size": 15, "speed": 10, "reverse": true },
+        { "effect": "wled", "name": "Juggle" },
+        { "effect": "wled", "name": "Dynamic", "Palette": "* Colors 1&2", "Color 1": "#FFFFFF", "Color 2": "#FF0000" },
+        { "effect": "comet", "size": 15, "speed": 10, "reverse": true },
+        { "effect": "wled", "name": "Dancing Shadows", "Palette": "Rainbow", "Speed": 15 },
+        { "effect": "wled", "name": "Fireworks 1D", "Palette": "Rainbow", "Color 2": "#000000" },
+        { "effect": "comet", "size": 15, "speed": 10, "reverse": true },
+        { "effect": "wled", "name": "Colortwinkles" }
+      ]
+    },
+    "Mantle": {
+      "duration": "random",
+      "effects": [
+        { "effect": "wled", "name": "Plasma", "Palette": "Rivendell", "Color 1": "#000000", "Phase": 255 },
+        { "effect": "wled", "name": "Pacifica", "Palette": "Retro Clown", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Colortwinkles" },
+        { "effect": "wled", "name": "Plasma", "Palette": "Ocean", "Color 1": "#000000", "Phase": 255 },
+        { "effect": "wled", "name": "Washing Machine", "Palette": "Magenta", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "twinkle" },
+        { "effect": "wled", "name": "Plasma", "Palette": "Magenta", "Color 1": "#000000", "Phase": 255 },
+        { "effect": "wled", "name": "Loading", "Palette": "Toxy Reaf", "Color 1": "#000000", "Color 2": "#000000", "Fade": 255 },
+        { "effect": "wled", "name": "Colortwinkles" },
+        { "effect": "wled", "name": "Pacifica", "Palette": "Rivendell", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Loading", "Palette": "Ocean", "Color 1": "#000000", "Color 2": "#000000", "Fade": 255 },
+        { "effect": "twinkle" },
+        { "effect": "wled", "name": "Loading", "Palette": "Forest", "Color 1": "#000000", "Color 2": "#000000", "Fade": 255 },
+        { "effect": "wled", "name": "Pacifica", "Palette": "Toxy Reaf", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Colortwinkles" },
+        { "effect": "wled", "name": "Loading", "Palette": "Ocean", "Color 1": "#000000", "Color 2": "#000000", "Fade": 255 },
+        { "effect": "wled", "name": "Washing Machine", "Palette": "Magenta", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Colortwinkles" },
+        { "effect": "wled", "name": "Loading", "Palette": "Magenta", "Color 1": "#000000", "Color 2": "#000000", "Fade": 255 },
+        { "effect": "wled", "name": "Pacifica", "Palette": "Forest", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "twinkle" },
+        { "effect": "wled", "name": "Plasma", "Palette": "Rivendell", "Color 1": "#000000", "Phase": 255 },
+        { "effect": "wled", "name": "Pacifica", "Palette": "Retro Clown", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Colortwinkles" },
+        { "effect": "wled", "name": "Pacifica", "Palette": "Rivendell", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "wled", "name": "Pacifica", "Palette": "Toxy Reaf", "Color 1": "#000000", "Color 2": "#000000" },
+        { "effect": "twinkle" },
+        { "effect": "wled", "name": "Washing Machine", "Palette": "Magenta", "Color 1": "#000000", "Color 2": "#000000" },
         { "effect": "wled", "name": "Lake", "Palette": "Rainbow" },
-        { "effect": "wled", "name": "Glitter" },
         { "effect": "wled", "name": "Colortwinkles" },
         { "effect": "twinkle" }
       ]

@@ -7,6 +7,8 @@ There are two setups:
   further changes.
 - **Falcon F16v4 pixel controller** (FPP server `neon`, 192.168.86.110): `f16_show.py` +
   `f16_show.json`. See [F16v4 show](#f16v4-show-f16_showpy).
+- **Any Pi hat on FPP** (with playlist/scheduler control): `hat_show.py` + `hat_show.json`.
+  See [Pi hat show](#pi-hat-show-hat_showpy).
 
 The scripts don't drive the outputs themselves. FPP owns them; the scripts set pixel
 colors through FPP's **Pixel Overlay Model** REST API.
@@ -236,6 +238,37 @@ the start script sees it running and doesn't start a new one.
 FPP 6.2's WLED effects take generic settings (`Speed`, `Intensity`, `Palette`, `Color 1`-`3`)
 instead of FPP 7.5's per-effect names such as `Gap size`, `Phase` or `Fade`, and lack some
 palettes (e.g. `Retro Clown`). Check what's available with `f16_show.py --effects NAME`.
+
+## Pi hat show (`hat_show.py`)
+
+The same as `f16_show.py`, for an FPP server whose pixels hang off a Pi hat instead of a
+Falcon controller. It reads the ports from FPP's own Pi hat output (*Input/Output Setup >
+Pi Pixel Strings*) and keeps models named `HatPort1`, `HatPort2`, ... in step with them
+(`HatPort3-1`, `HatPort3-2` for a port with several strings). Effects go in
+`hat_show.json` under those names. There's no controller check, since FPP drives the hat
+directly.
+
+It only manages `HatPort` models, and `f16_show.py` only manages `Port` models, so both can
+run on a server that has both (like `neon`), as long as their ports use different channels.
+FPP also auto-creates a model per hat port (named after the port's description, e.g.
+`Strip`); those cover the same channels and are left alone.
+
+```bash
+scp hat_show.py hat_show.json hat_show_start.sh hat_show_stop.sh f16_show.py falcon.py run_show.py effects.py fpp_overlay.py fpp@192.168.86.110:/home/fpp/media/scripts/
+```
+
+```bash
+python3 /home/fpp/media/scripts/hat_show.py --ports
+```
+
+```bash
+sudo python3 /home/fpp/media/scripts/hat_show.py
+```
+
+`f16_show.py` and `falcon.py` are needed too: `hat_show.py` shares their model sync and
+playlist code. Options are the same as `f16_show.py` without `--controller`. For FPP's
+scheduler, use `hat_show_start.sh` and `hat_show_stop.sh` exactly as described for the
+F16v4 show; the log is `/home/fpp/media/logs/hat_show.log`.
 
 ### `random_first20.py`: test pattern
 

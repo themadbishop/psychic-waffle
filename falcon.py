@@ -61,10 +61,10 @@ def ports(controller):
     return found, problems
 
 
-def model_name(port, all_ports):
+def model_name(port, all_ports, prefix="Port"):
     """FPP overlay model name for a port: "Port3", or "Port3-2" when port 3 has several strings."""
     shared = sum(1 for p in all_ports if p.number == port.number) > 1
-    return f"Port{port.number}-{port.string}" if shared else f"Port{port.number}"
+    return f"{prefix}{port.number}-{port.string}" if shared else f"{prefix}{port.number}"
 
 
 def overlaps(all_ports):

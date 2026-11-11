@@ -55,6 +55,16 @@ Added 2026-10-31. `run_show.py` is frozen for the M8-PI setup above; new work go
 - Confirmed on `neon` (2026-11-11): model sync, all ports running, and Stop in FPP ending
   the show.
 
+## Pi hat setup (`hat_show.py`)
+
+Added 2026-11-11: `f16_show.py` for an FPP server's own Pi hat. Ports come from
+`GET /api/channel/output/co-pixelStrings` (`portNumber` 0-based, `virtualStrings[]` with
+0-based `startChannel`, `pixelCount`, `colorOrder`); models are `HatPort1`, ... so they don't
+clash with the F16 show's `Port` models on `neon`. Shares the sync, playlist-follow and run
+code in `f16_show.py` (`sync_port_models`, `print_ports`, `run_until_stopped`, each taking the
+port list and a name prefix). Checked read-only on `neon` (its hat has 2 ports of 900 pixels
+at channels 48961+); not yet run there.
+
 ## Running it
 
 ```bash
@@ -84,6 +94,9 @@ sudo python3 /home/fpp/media/scripts/run_show.py
 | `falcon.py` | Reads the F16v4's string ports (read-only) |
 | `f16_show.json` | Which effect each F16v4 port runs |
 | `f16_show_start.sh` / `f16_show_stop.sh` | Start the show in the background / stop it, for FPP playlists and the scheduler |
+| `hat_show.py` | Same as `f16_show.py` for an FPP server's own Pi hat (HatPort models) |
+| `hat_show.json` | Which effect each Pi hat port runs |
+| `hat_show_start.sh` / `hat_show_stop.sh` | Start/stop the Pi hat show, for FPP playlists and the scheduler |
 | `README.md` | Setup, install and usage |
 | `STATUS.md` | This file |
 

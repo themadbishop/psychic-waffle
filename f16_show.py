@@ -37,9 +37,15 @@ from run_show import load_show, print_effects, print_models, run
 FPP_HOST = "localhost"  # this script runs on the FPP server itself (192.168.86.110)
 CONTROLLER = "192.168.0.11"  # Falcon F16v4
 DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "f16_show.json")
-PORT_MODEL = re.compile(r"Port\d+(-\d+)?$")  # names of the models made from the controller's ports
+PREFIX = "Port"  # models made from the controller's ports are Port1, Port2, ...
 RESTART_TIMEOUT = 60  # seconds to wait for fppd to come back with the new models
 PLAYLIST_POLL = 2  # seconds between checks that the playlist that started the show is still playing
+
+
+def warn_overlaps(found, prefix):
+    for a, b in falcon.overlaps(found):
+        print(f"Warning: {falcon.model_name(a, found, prefix)} and {falcon.model_name(b, found, prefix)} use "
+              f"some of the same channels, so they'll show the same pixels.", file=sys.stderr)
 
 
 def read_ports(controller):
@@ -47,16 +53,19 @@ def read_ports(controller):
     found, problems = falcon.ports(controller)
     for problem in problems:
         print(f"Warning: skipping {problem}.", file=sys.stderr)
-    for a, b in falcon.overlaps(found):
-        print(f"Warning: {falcon.model_name(a, found)} and {falcon.model_name(b, found)} use some of the "
-              f"same channels on the controller, so they'll show the same pixels.", file=sys.stderr)
+    warn_overlaps(found, PREFIX)
     return found
 
 
-def port_models(found):
-    """FPP overlay model settings for each of the controller's strings."""
+def model_pattern(prefix):
+    """Matches the names of the models made from ports with this prefix (and only those)."""
+    return re.compile(re.escape(prefix) + r"\d+(-\d+)?$")
+
+
+def port_models(found, prefix=PREFIX):
+    """FPP overlay model settings for each port's strings."""
     return [{
-        "Name": falcon.model_name(p, found),
+        "Name": falcon.model_name(p, found, prefix),
         "Type": "Channel",
         "StartChannel": p.start_channel,
         "ChannelCount": p.pixels * falcon.CHANNELS_PER_PIXEL,
@@ -77,12 +86,11 @@ def same_channels(model, wanted):
     return (model.get("StartChannel"), model.get("ChannelCount")) == (wanted["StartChannel"], wanted["ChannelCount"])
 
 
-def print_ports(host, controller):
-    """List the controller's ports and whether FPP has a matching model for each."""
-    found = read_ports(controller)
+def print_ports(host, found, source, prefix=PREFIX):
+    """List the ports and whether FPP has a matching model for each."""
     models = {m.get("Name"): m for m in saved_models(host)}
-    print(f"String ports on {controller}:")
-    for p, wanted in zip(found, port_models(found)):
+    print(f"String ports on {source}:")
+    for p, wanted in zip(found, port_models(found, prefix)):
         have = models.get(wanted["Name"])
         status = "model in FPP" if have and same_channels(have, wanted) else \
             "FPP model has different channels" if have else "no FPP model yet"
@@ -90,32 +98,34 @@ def print_ports(host, controller):
         print(f"  {wanted['Name']}: {p.pixels} pixels, channels {wanted['StartChannel']}-{last}  ({status})")
 
 
-def sync_port_models(host, controller, apply=True):
-    """Make FPP's Port models match the controller's ports, restarting fppd if anything changed.
+def sync_port_models(host, found, source, prefix=PREFIX, apply=True):
+    """Make FPP's models for these ports match them, restarting fppd if anything changed.
 
-    Models you made yourself (any other name) are kept; Port models for
-    ports that no longer have pixels are removed. With apply=False only
-    warns about differences (restarting fppd would stop a playing playlist).
+    Only models named with `prefix` (e.g. Port1, Port2) are managed: any
+    other models are kept, and prefixed ones for ports that no longer have
+    pixels are removed. With apply=False only warns about differences
+    (restarting fppd would stop a playing playlist).
     """
-    found = read_ports(controller)
     if not found:
-        sys.exit(f"The pixel controller at {controller} has no string ports with pixels.")
-    wanted = port_models(found)
+        sys.exit(f"{source} has no string ports with pixels.")
+    ours = model_pattern(prefix)
+    wanted = port_models(found, prefix)
     names = {w["Name"] for w in wanted}
     current = saved_models(host)
     by_name = {m.get("Name"): m for m in current}
-    stale = [m["Name"] for m in current if PORT_MODEL.match(m.get("Name", "")) and m["Name"] not in names]
+    stale = [m["Name"] for m in current if ours.match(m.get("Name", "")) and m["Name"] not in names]
     if not stale and all(w["Name"] in by_name and same_channels(by_name[w["Name"]], w) for w in wanted):
-        print(f"FPP's overlay models match the {len(wanted)} port(s) on {controller}.")
+        print(f"FPP's overlay models match the {len(wanted)} port(s) on {source}.")
         return
     if not apply:
-        print(f"Warning: FPP's Port models don't match the ports on {controller}; not updating them "
-              f"while a playlist is playing. Run f16_show.py --ports, then f16_show.py once from a "
+        script = os.path.basename(sys.argv[0])
+        print(f"Warning: FPP's {prefix} models don't match the ports on {source}; not updating them "
+              f"while a playlist is playing. Run {script} --ports, then {script} once from a "
               f"shell with no playlist playing, to update them.", file=sys.stderr)
         return
 
     # FPP rebuilds the models it auto-creates from its own outputs, so only save the user's.
-    keep = [m for m in current if not m.get("autoCreated") and not PORT_MODEL.match(m.get("Name", ""))]
+    keep = [m for m in current if not m.get("autoCreated") and not ours.match(m.get("Name", ""))]
     body = {"models": keep + wanted}
     settings = request("GET", f"http://{host}/api/overlays/settings") or {}
     if isinstance(settings, dict) and "autoCreate" in settings:
@@ -123,7 +133,7 @@ def sync_port_models(host, controller, apply=True):
     resp = request("POST", f"http://{host}/api/models", body)
     if not (isinstance(resp, dict) and resp.get("Status") == "OK"):
         raise FPPError(f"FPP didn't save the overlay models: {resp!r}")
-    print(f"Saved {len(wanted)} port model(s) from {controller} to FPP"
+    print(f"Saved {len(wanted)} port model(s) from {source} to FPP"
           + (f" (removed {', '.join(stale)})" if stale else "") + "; restarting fppd to load them...")
 
     try:
@@ -175,6 +185,34 @@ def follow_playlist(host, playlist):
 
 def stop_on_sigterm(signum, frame):
     raise KeyboardInterrupt  # same clean shutdown as Ctrl+C
+
+
+def run_until_stopped(host, show, playlist, where):
+    """Run the show until Ctrl+C, SIGTERM or (if set) FPP stopping `playlist`, then turn it off."""
+    signal.signal(signal.SIGTERM, stop_on_sigterm)
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # Ctrl+C, even if started with SIGINT ignored
+    if playlist:
+        threading.Thread(target=follow_playlist, args=(host, playlist), daemon=True).start()
+        print(f"Running show on {where} until FPP stops playlist '{playlist}':", flush=True)
+    else:
+        print(f"Running show on {where} (Ctrl+C to stop):", flush=True)
+    try:
+        run(show)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Don't let a second stop request cut the clean-up short.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        for model, effect in show:
+            try:
+                effect.stop()
+                model.clear()
+                model.disable()
+            except Exception as e:  # keep going so the other models still get turned off
+                print(f"Could not turn off {model.name}: {e}", file=sys.stderr)
+            model.close()
+        print("\nStopped; show models turned off.")
 
 
 def controller_outputs(host, controller):
@@ -265,41 +303,18 @@ def main():
                 sys.exit(str(e))
             return
         if args.ports:
-            print_ports(args.host, args.controller)
+            print_ports(args.host, read_ports(args.controller), args.controller)
             return
         playlist = playing_playlist(args.host)
         if not args.no_sync:
-            sync_port_models(args.host, args.controller, apply=playlist is None)
+            sync_port_models(args.host, read_ports(args.controller), f"the pixel controller at {args.controller}",
+                             apply=playlist is None)
         show = load_show(args.config, args.host)
         check_controller(args.host, args.controller, {model.name for model, _ in show})
     except FPPError as e:
         sys.exit(str(e))
 
-    signal.signal(signal.SIGTERM, stop_on_sigterm)
-    signal.signal(signal.SIGINT, signal.default_int_handler)  # Ctrl+C, even if started with SIGINT ignored
-    if playlist:
-        threading.Thread(target=follow_playlist, args=(args.host, playlist), daemon=True).start()
-        print(f"Running show on the pixel controller at {args.controller} until FPP stops "
-              f"playlist '{playlist}':", flush=True)
-    else:
-        print(f"Running show on the pixel controller at {args.controller} (Ctrl+C to stop):", flush=True)
-    try:
-        run(show)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # Don't let a second stop request cut the clean-up short.
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        for model, effect in show:
-            try:
-                effect.stop()
-                model.clear()
-                model.disable()
-            except Exception as e:  # keep going so the other models still get turned off
-                print(f"Could not turn off {model.name}: {e}", file=sys.stderr)
-            model.close()
-        print("\nStopped; show models turned off.")
+    run_until_stopped(args.host, show, playlist, f"the pixel controller at {args.controller}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Project status
 
-_Last updated: 2026-10-10_
+_Last updated: 2026-11-11_
 
 ## Goal
 
@@ -29,6 +29,32 @@ Models**; FPP itself drives the hat's outputs.
 - Strings will grow past 1000 pixels: update the port pixel counts in FPP as lights are added
   (the scripts pick up new sizes automatically).
 
+## F16v4 setup (`f16_show.py`)
+
+Added 2026-10-31. `run_show.py` is frozen for the M8-PI setup above; new work goes here.
+
+- FPP server **`neon`**, 192.168.86.110: Raspberry Pi 4, **FPP 6.2** (OS image v2022-09b).
+  Has its own Pi hat outputs configured (auto-created models `Strip` 48961+ and `String`
+  51661+); the show doesn't use them.
+- Falcon **F16v4** at 192.168.0.11, firmware build 21, on a separate subnet reached from
+  `neon`. FPP sends it 96 E1.31 unicast universes of 510 channels (channels 1-48960).
+- The F16v4's port setup is read with `POST http://192.168.0.11/api`
+  `{"T":"Q","M":"SP","B":0,"E":0,"I":0,"P":{}}`: `p` = port (0-based), `sc` = start channel
+  (0-based), `n` = pixels, `u` = universe (0 = absolute channel), `v` = virtual string.
+  `"M":"ST"` gives status (`P` = port count, `XT` = expansion type).
+- Ports with pixels (2026-11-11): 1-6 and 7-8 (300 each), 9 (400), 10 (200), 11 (3 pixels on
+  channels 1-9, overlapping port 1; probably leftover), 17 (300, channels 7201-8100, on the
+  expansion board once it was enabled on the controller).
+- FPP saves overlay models with `POST /api/models` (`{"models": [...], "autoCreate": ...}`),
+  which writes `model-overlays.json`; fppd only loads them after a restart
+  (`GET /api/system/fppd/restart`, whose reply can take longer than 5 s).
+- Scheduling: playlist with `f16_show_start.sh` + a long Pause, scheduled with Repeat. The
+  show polls `/api/fppd/status` every 2 s and stops itself when that playlist stops. It
+  signals itself with SIGTERM, not SIGINT: a program started in the background by a script
+  has SIGINT ignored, which is why the first version didn't stop.
+- Confirmed on `neon` (2026-11-11): model sync, all ports running, and Stop in FPP ending
+  the show.
+
 ## Running it
 
 ```bash
@@ -54,6 +80,10 @@ sudo python3 /home/fpp/media/scripts/run_show.py
 | `run_show.py` | Runs `show.json`: one effect per model, all at once |
 | `show.json` | Which effect each model runs |
 | `random_first20.py` | Original single-model test (first 20 pixels, random color every 3 s) |
+| `f16_show.py` | F16v4 show: syncs Port models from the controller, checks FPP's output, runs `f16_show.json`, follows its FPP playlist |
+| `falcon.py` | Reads the F16v4's string ports (read-only) |
+| `f16_show.json` | Which effect each F16v4 port runs |
+| `f16_show_start.sh` / `f16_show_stop.sh` | Start the show in the background / stop it, for FPP playlists and the scheduler |
 | `README.md` | Setup, install and usage |
 | `STATUS.md` | This file |
 
@@ -187,6 +217,7 @@ WLED effects at its refresh rate (default 20), so faster updates wouldn't reach 
 | `c23f589` | Effect cycles, `wled` effect type, `--effects`; Python `firework` dropped |
 | `8e8e08d` | Accept FPP's plain-text command replies |
 | `a0de314` | WLED BufferMapping/Brightness fixes for FPP 7.5, random cycle durations |
+| `c63f11f` | Python effects at 20 fps; reversed comets keep the head leading |
 
 ## Next steps
 

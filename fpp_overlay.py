@@ -14,6 +14,7 @@ import glob
 import json
 import mmap
 import os
+import socket
 import struct
 import sys
 import urllib.error
@@ -57,6 +58,8 @@ def request(method, url, body=None, timeout=5, raw=None):
         raise FPPError(f"{method} {url} failed: HTTP {e.code} {e.reason}" + (f": {detail}" if detail else "")) from e
     except urllib.error.URLError as e:
         raise FPPError(f"Cannot reach FPP at {url}: {e.reason}") from e
+    except socket.timeout as e:
+        raise FPPError(f"FPP didn't answer {method} {url} within {timeout}s") from e
     if not text.strip():
         return None
     try:

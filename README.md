@@ -1,10 +1,15 @@
 # psychic-waffle
 
-Python code for an LED display driven by [FPP (Falcon Player)](https://github.com/FalconChristmas/fpp)
-on a Raspberry Pi with an M8-PI pixel hat.
+Python code for an LED display driven by [FPP (Falcon Player)](https://github.com/FalconChristmas/fpp).
+There are two setups:
 
-The scripts don't drive the GPIO pins themselves. FPP owns the hat's outputs; the
-scripts set pixel colors through FPP's **Pixel Overlay Model** REST API.
+- **M8-PI hat** (`flourine`): `run_show.py` + `show.json`, described below. Frozen; no
+  further changes.
+- **Falcon F16v4 pixel controller** (FPP server `neon`, 192.168.86.110): `f16_show.py` +
+  `f16_show.json`. See [F16v4 show](#f16v4-show-f16_showpy).
+
+The scripts don't drive the outputs themselves. FPP owns them; the scripts set pixel
+colors through FPP's **Pixel Overlay Model** REST API.
 
 ## Hardware
 
@@ -165,6 +170,72 @@ as `shm`, `bulk` or `pixel` updates):
 `count` lights the first N pixels; the rest of that model stays off. Any mistakes in the
 file (unknown effect, bad color, count too large) are all reported before
 anything lights up.
+
+## F16v4 show (`f16_show.py`)
+
+Runs on the FPP server `neon` (192.168.86.110, FPP 6.2), which sends channels to a Falcon
+F16v4 at 192.168.0.11 over E1.31. It uses the same effects and file format as
+`run_show.py`, with three additions:
+
+- **Models come from the controller's ports.** At startup it reads the F16v4's String Ports
+  setup (`falcon.py`, read-only) and makes FPP's overlay models match: one model per port
+  with pixels, named `Port1`, `Port2`, ... (`Port3-1`, `Port3-2` for a port with several
+  strings). If anything changed, it saves the models and restarts fppd. Models with other
+  names are kept. In `f16_show.json`, effects are listed by these names.
+- **Checks the path to the controller.** It stops if FPP has no enabled E1.31/DDP output to
+  192.168.0.11, and warns about any port whose channels that output doesn't cover.
+- **FPP can start and stop it** (below).
+
+### Install
+
+```bash
+scp f16_show.py falcon.py f16_show.json f16_show_start.sh f16_show_stop.sh run_show.py effects.py fpp_overlay.py fpp@192.168.86.110:/home/fpp/media/scripts/
+```
+
+```bash
+ssh fpp@192.168.86.110 chmod +x /home/fpp/media/scripts/f16_show_start.sh /home/fpp/media/scripts/f16_show_stop.sh
+```
+
+### Run by hand
+
+```bash
+python3 /home/fpp/media/scripts/f16_show.py --ports
+```
+
+```bash
+sudo python3 /home/fpp/media/scripts/f16_show.py
+```
+
+`--ports` lists the controller's ports and whether FPP has a matching model, without
+changing anything. `--no-sync` skips updating the models; `--list`, `--effects` and
+`--host` work as in `run_show.py`, and `--controller` sets the F16v4's address. Ctrl+C
+stops the show.
+
+After changing ports on the F16v4, run it once by hand with no playlist playing: while a
+playlist is playing it won't restart fppd (that would stop the playlist), and only warns.
+
+### Run from FPP's scheduler
+
+Make a playlist (*Content Setup > Playlists*) whose **Main Playlist** has:
+
+1. a Script entry: `f16_show_start.sh`
+2. a Pause entry, e.g. 3600 seconds, to keep the playlist playing
+
+Schedule it (*Content Setup > Scheduler*) with **Repeat** on. `f16_show_start.sh` starts
+the show in the background, or does nothing if it's already running, so it can repeat
+with the playlist. The show follows the playlist that started it: when FPP stops it (Stop
+button or the end of the schedule), the show turns its ports off within about 4 seconds.
+`f16_show_stop.sh` (*Run Script*, or a playlist's Lead Out) stops it at any time.
+
+Output goes to `/home/fpp/media/logs/f16_show.log`. After pressing Stop, wait about 5
+seconds before starting the playlist again: while the old show is still shutting down,
+the start script sees it running and doesn't start a new one.
+
+### FPP 6.2 notes
+
+FPP 6.2's WLED effects take generic settings (`Speed`, `Intensity`, `Palette`, `Color 1`-`3`)
+instead of FPP 7.5's per-effect names such as `Gap size`, `Phase` or `Fade`, and lack some
+palettes (e.g. `Retro Clown`). Check what's available with `f16_show.py --effects NAME`.
 
 ### `random_first20.py`: test pattern
 
